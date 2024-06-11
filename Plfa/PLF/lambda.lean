@@ -16,13 +16,17 @@ def a : Identifier := "a"
 def b : Identifier := "b"
 def x : Identifier := "x"
 def y : Identifier := "y"
+def m : Identifier := "m"
+def n : Identifier := "n"
+def f : Identifier := "f"
 
 def identity_term : Term := lam x (var x) -- λx.x
 def const : Term := lam x (lam y (var x)) -- λx.λy.x
 def self_app : Term := lam x (app (var x) (var x)) --λx.xx
-def true : Term := lam x (lam y (var x)) --λx.λy.x
-def false : Term := lam x (lam y (var y)) -- λx.λy.y
+def true_term : Term := lam x (lam y (var x)) --λx.λy.x
+def false_term : Term := lam x (lam y (var y)) -- λx.λy.y
 def if_term : Term := lam p (lam a (lam b (app (app (var p) (var a)) (var b)))) -- λp.λa.λb.pab
+def add : Term := lam m (lam n (lam f (lam x (app (app (var m) (var f)) (app (app (var n) (var f)) (var x)) )))) -- λm.λn.λf.λx.mf(nfx)
 
 def two : Term :=
   suc (suc zero)

@@ -2,33 +2,7 @@ import Plfa.untyped.Term
 
 open Term
 
-def prettyPrint : Term → String
-| var x       => x
-| lam x t     => String.intercalate "" ["λ", x, ". ", prettyPrint t]
-| app t1 t2   => "(" ++ prettyPrint t1 ++ " " ++ prettyPrint t2 ++ ")"
-
 -- Example terms for testing
-def id1 := lam "x" (var "x")
-def const := lam "x" (lam "y" (var "x"))
-def selfApp := lam "x" (app (var "x") (var "x"))
-def doubleApp := lam "f" (lam "x" (app (var "f") (app (var "f") (var "x"))))
-def applyArg := app (lam "x" (var "x")) (var "y")
-def nestedLambda := lam "x" (lam "y" (lam "z" (app (var "x") (app (var "y") (var "z")))))
-def complexApp := app (app (lam "x" (lam "y" (app (var "x") (var "y")))) (lam "z" (var "z"))) (var "w")
-def churchTwo := lam "f" (lam "x" (app (var "f") (app (var "f") (var "x"))))
-def churchAdd := lam "m" (lam "n" (lam "f" (lam "x" (app (app (var "m") (var "f")) (app (app (var "n") (var "f")) (var "x"))))))
-def combineChurch := app (app churchAdd churchTwo) churchTwo
-
-#eval prettyPrint id1
-#eval prettyPrint const
-#eval prettyPrint selfApp
-#eval prettyPrint doubleApp
-#eval prettyPrint applyArg
-#eval prettyPrint nestedLambda
-#eval prettyPrint complexApp
-#eval prettyPrint churchTwo
-#eval prettyPrint churchAdd
-#eval prettyPrint combineChurch
 
 def isFree (x : Identifier) : Term → Bool
 | var y       => x = y
@@ -42,6 +16,7 @@ def id2 := lam "x" (var "x")
 def constx := lam "x" (lam "y" (var "x"))
 def nested := lam "y" (lam "x" (app (var "x") (var "y")))
 def appExample := app (lam "x" (var "x")) (var "y")
+def const := lam "x" (lam "y" (var "x"))
 
 -- Testing isFree function
 #eval isFree "x" x
@@ -55,5 +30,39 @@ def appExample := app (lam "x" (var "x")) (var "y")
 #eval isFree "x" nested
 #eval isFree "y" nested
 #eval isFree "x" appExample
-#eval prettyPrint appExample
 #eval isFree "y" appExample
+
+
+def indexOf (x : String) : List String → Nat
+| []        => 0
+| (y :: ys) => if x = y then 0 else 1 + indexOf x ys
+
+def testIndexOf : List (String × List String × Nat) :=
+  [ ("a", ["a", "b", "c"], 0)
+  , ("b", ["a", "b", "c"], 1)
+  , ("c", ["a", "b", "c"], 2)
+  , ("d", ["a", "b", "c"], 3)
+  , ("a", [], 0)
+  , ("x", ["x", "x", "x"], 0)
+  , ("y", ["x", "y", "x"], 1)
+  , ("z", ["x", "y", "z"], 2)
+  ]
+
+def prettyPrintResult (x : String) (ctx : List String) (result : Nat) (expected : Nat) (correct : Bool) : String :=
+  s!"Variable: {x}, Context: {ctx}, Result: {result}, Expected: {expected}, Correct: {correct}"
+
+#eval testIndexOf.map (fun (x, ctx, expected) => prettyPrintResult x ctx (indexOf x ctx) expected (indexOf x ctx == expected))
+
+-- def prettyPrintDeBruijn : DeBruijnTerm → Nat → String
+-- | DeBruijnTerm.var k, c     => toVarName (c - k - 1)
+-- | DeBruijnTerm.lam t, c     => "λ" ++ toVarName c ++ ". " ++ prettyPrintDeBruijn t (c + 1)
+-- | DeBruijnTerm.app t1 t2, c => "(" ++ prettyPrintDeBruijn t1 c ++ " " ++ prettyPrintDeBruijn t2 c ++ ")"
+
+-- def prettyPrintDeBruijnWrapper (t : DeBruijnTerm) : String :=
+--   prettyPrintDeBruijn t 0
+
+
+-- Helper function to convert De Bruijn indices back to variable names for readability
+def toVarName (k : Nat) : String :=
+  let asciiOffset := 97  -- 'a' in ASCII
+  String.singleton (Char.ofNat (asciiOffset + k % 26))

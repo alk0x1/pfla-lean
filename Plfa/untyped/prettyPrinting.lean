@@ -32,8 +32,6 @@ def combineChurch := Term.app (Term.app churchAdd churchTwo) churchTwo
 
 
 ---- DeBrujin Lambda Term
-
-
 def prettyPrintDeBruijn : DeBruijnTerm → Nat → String
 | DeBruijnTerm.var k, _     => k.repr
 | DeBruijnTerm.lam t, c     => "λ" ++ prettyPrintDeBruijn t (c + 1)
@@ -42,18 +40,6 @@ def prettyPrintDeBruijn : DeBruijnTerm → Nat → String
 
 def prettyPrintDeBruijnWrapper (t : DeBruijnTerm) : String :=
   prettyPrintDeBruijn t 0
-
--- Example De Bruijn terms for testing
-def id1_debruijn := DeBruijnTerm.lam (DeBruijnTerm.var 0)
-def constz_debruijn := DeBruijnTerm.lam (DeBruijnTerm.lam (DeBruijnTerm.var 1))
-def selfApp_debruijn := DeBruijnTerm.lam (DeBruijnTerm.app (DeBruijnTerm.var 0) (DeBruijnTerm.var 0))
-def doubleApp_debruijn := DeBruijnTerm.lam (DeBruijnTerm.lam (DeBruijnTerm.app (DeBruijnTerm.var 1) (DeBruijnTerm.app (DeBruijnTerm.var 1) (DeBruijnTerm.var 0))))
-def applyArg_debruijn := DeBruijnTerm.app (DeBruijnTerm.lam (DeBruijnTerm.var 0)) (DeBruijnTerm.var 0)
-def nestedLambda_debruijn := DeBruijnTerm.lam (DeBruijnTerm.lam (DeBruijnTerm.lam (DeBruijnTerm.app (DeBruijnTerm.var 2) (DeBruijnTerm.app (DeBruijnTerm.var 1) (DeBruijnTerm.var 0)))))
-def complexApp_debruijn := DeBruijnTerm.app (DeBruijnTerm.app (DeBruijnTerm.lam (DeBruijnTerm.lam (DeBruijnTerm.app (DeBruijnTerm.var 1) (DeBruijnTerm.var 0)))) (DeBruijnTerm.lam (DeBruijnTerm.var 0))) (DeBruijnTerm.var 0)
-def churchTwo_debruijn := DeBruijnTerm.lam (DeBruijnTerm.lam (DeBruijnTerm.app (DeBruijnTerm.var 1) (DeBruijnTerm.app (DeBruijnTerm.var 1) (DeBruijnTerm.var 0))))
-def churchAdd_debruijn := DeBruijnTerm.lam (DeBruijnTerm.lam (DeBruijnTerm.lam (DeBruijnTerm.lam (DeBruijnTerm.app (DeBruijnTerm.app (DeBruijnTerm.var 3) (DeBruijnTerm.var 1)) (DeBruijnTerm.app (DeBruijnTerm.app (DeBruijnTerm.var 2) (DeBruijnTerm.var 1)) (DeBruijnTerm.var 0))))))
-def combineChurch_debruijn := DeBruijnTerm.app (DeBruijnTerm.app churchAdd_debruijn churchTwo_debruijn) churchTwo_debruijn
 
 -- Conversion and pretty printing
 #eval prettyPrintDeBruijnWrapper (toDeBruijn id1)

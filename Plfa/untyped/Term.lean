@@ -29,13 +29,10 @@ open Term
 -- | (app t1 t2) => app (subst x v t1) (subst x v t2)
 
 
-
-
 -- -- Example Identifiers
 -- def x : Identifier := "x"
 -- def y : Identifier := "y"
 -- def z : Identifier := "z"
-
 
 
 -- -- Example Terms

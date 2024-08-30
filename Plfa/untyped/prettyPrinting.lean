@@ -1,5 +1,6 @@
 import Plfa.untyped.Term
 import Plfa.untyped.DeBruijin
+import Plfa.untyped.normalizer
 
 ---- Named Lambda Term
 def prettyPrint : Term → String
@@ -52,3 +53,17 @@ def prettyPrintDeBruijnWrapper (t : DeBruijnTerm) : String :=
 #eval prettyPrintDeBruijnWrapper (toDeBruijn churchTwo)
 #eval prettyPrintDeBruijnWrapper (toDeBruijn churchAdd)
 #eval prettyPrintDeBruijnWrapper (toDeBruijn combineChurch)
+
+
+-- Beta Reduction
+def exampleTerm1 := Term.app (Term.lam "x" (Term.var "x")) (Term.var "y")  -- (λx. x) y
+#eval prettyPrint  exampleTerm1  -- Should be `y`
+#eval prettyPrint (normalize exampleTerm1)  -- Should be `y`
+
+def exampleTerm2 := Term.app (Term.lam "x" (Term.app (Term.var "x") (Term.var "x"))) (Term.lam "x" (Term.var "x"))
+#eval prettyPrint exampleTerm2
+#eval prettyPrint (normalize exampleTerm2)  -- Should be `λx. x`
+
+def exampleTerm3 := Term.app (Term.app (Term.lam "x" (Term.lam "y" (Term.var "x"))) (Term.var "z")) (Term.var "w")
+#eval prettyPrint exampleTerm3
+#eval prettyPrint (normalize exampleTerm3)  -- Should be `λy. w z`

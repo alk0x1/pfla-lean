@@ -28,6 +28,16 @@ instance Functor Env where
   fmap f (Env xs) =
     Env (map (\(x, v) -> (x, f v)) xs)
 
+
+freshen :: [Name] -> Name -> Name
+freshen used x
+  | elem x used = freshen used (nextName x)
+  | otherwise = x
+
+nextName :: Name -> Name
+nextName (Name x) = Name (x ++ "'")
+
+
 newtype Message = Message String
   deriving Show
 failure :: String -> Either Message b
@@ -73,22 +83,21 @@ readBack used fun@(VClosure _ x _ ) =
 
 
 
+normalize::Expr -> Either Message Expr
+normalize expr =
+  do val <- eval initEnv expr
+     readBack[] val
 
 
+runProgram :: [ (Name, Expr) ] -> Expr -> Either Message Expr 
+runProgram defs expr = 
+  do env <- addDefs initEnv defs
+     val <- eval env expr 
+     readBack (map fst defs) val
 
+addDefs :: Env Value -> [ (Name, Expr) ] -> Either Message (Env Value)
+addDefs env [ ] = Right env
+addDefs env ((x, e): defs) =
+  do v <- eval env e
+     addDefs(extend env x v) defs
 
-
-
--- Main function to run the code
-main :: IO ()
-main = do
-  let env = initEnv
-      expr = App (Lambda (Name "x") (Var (Name "x"))) (Var (Name "y"))
-      result = eval (extend env (Name "y") (VClosure env (Name "z") (Var (Name "z")))) expr
-  case result of
-    Left (Message msg) -> putStrLn $ "Error: " ++ msg
-    Right val          -> print val
-
-
--- Normalizer
--- adding a second step that reads values back into their syntax

@@ -42,7 +42,7 @@ def prettyPrintDeBruijn : DeBruijnTerm → Nat → String
 def prettyPrintDeBruijnWrapper (t : DeBruijnTerm) : String :=
   prettyPrintDeBruijn t 0
 
--- Conversion and pretty printing
+---- Conversion and pretty printing
 #eval prettyPrintDeBruijnWrapper (toDeBruijn id1)
 #eval prettyPrintDeBruijnWrapper (toDeBruijn constz)
 #eval prettyPrintDeBruijnWrapper (toDeBruijn selfApp)
@@ -55,15 +55,48 @@ def prettyPrintDeBruijnWrapper (t : DeBruijnTerm) : String :=
 #eval prettyPrintDeBruijnWrapper (toDeBruijn combineChurch)
 
 
--- Beta Reduction
-def exampleTerm1 := Term.app (Term.lam "x" (Term.var "x")) (Term.var "y")  -- (λx. x) y
-#eval prettyPrint  exampleTerm1  -- Should be `y`
-#eval prettyPrint (normalize exampleTerm1)  -- Should be `y`
+---- Beta Reduction
+-- (λx. x) y => y
+def exampleTerm1 := toDeBruijn (Term.app (Term.lam "x" (Term.var "x")) (Term.var "y"))
+#eval prettyPrintDeBruijnWrapper exampleTerm1  -- Should print: "λ. 0 1"
+#eval prettyPrintDeBruijnWrapper (normalizeDeBruijn exampleTerm1)  -- Should print: "1"
 
-def exampleTerm2 := Term.app (Term.lam "x" (Term.app (Term.var "x") (Term.var "x"))) (Term.lam "x" (Term.var "x"))
-#eval prettyPrint exampleTerm2
-#eval prettyPrint (normalize exampleTerm2)  -- Should be `λx. x`
+-- (λx. x x) (λx. x) => λx. x
+def exampleTerm2 := toDeBruijn (Term.app (Term.lam "x" (Term.app (Term.var "x") (Term.var "x"))) (Term.lam "x" (Term.var "x")))
+#eval prettyPrintDeBruijnWrapper exampleTerm2  -- Should print: "(λ. 0 0) λ. 0"
+#eval prettyPrintDeBruijnWrapper (normalizeDeBruijn exampleTerm2)  -- Should print: "λ. 0"
 
-def exampleTerm3 := Term.app (Term.app (Term.lam "x" (Term.lam "y" (Term.var "x"))) (Term.var "z")) (Term.var "w")
-#eval prettyPrint exampleTerm3
-#eval prettyPrint (normalize exampleTerm3)  -- Should be `λy. w z`
+-- ((λx. λy. x) z) w => λy. z
+def exampleTerm3 := toDeBruijn (Term.app (Term.app (Term.lam "x" (Term.lam "y" (Term.var "x"))) (Term.var "z")) (Term.var "w"))
+#eval prettyPrintDeBruijnWrapper exampleTerm3  -- Should print: "(λ. λ. 1) 1 0"
+#eval prettyPrintDeBruijnWrapper (normalizeDeBruijn exampleTerm3)  -- Should print: "λ. 1"
+
+-- Double application: (λf. λx. f (f x)) (λy. y) => λx. x
+def exampleTerm4 := toDeBruijn (Term.app (Term.lam "f" (Term.lam "x" (Term.app (Term.var "f") (Term.app (Term.var "f") (Term.var "x"))))) (Term.lam "y" (Term.var "y")))
+#eval prettyPrintDeBruijnWrapper exampleTerm4  -- Should print: "(λ. λ. 1 (1 0)) λ. 0"
+#eval prettyPrintDeBruijnWrapper (normalizeDeBruijn exampleTerm4)  -- Should print: "λ. λ. 0 (0 0)"
+
+-- Church numeral 2 applied to a function: (λf. λx. f (f x)) g => λx. g (g x)
+def exampleTerm5 := toDeBruijn (Term.app (Term.lam "f" (Term.lam "x" (Term.app (Term.var "f") (Term.app (Term.var "f") (Term.var "x"))))) (Term.var "g"))
+#eval prettyPrintDeBruijnWrapper exampleTerm5  -- Should print: "(λ. λ. 1 (1 0)) 0"
+#eval prettyPrintDeBruijnWrapper (normalizeDeBruijn exampleTerm5)  -- Should print: "λ. 0 (0 0)"
+
+-- Church numeral addition: (λm. λn. λf. λx. m f (n f x)) 2 2 => λf. λx. f (f (f (f x)))
+def exampleTerm6 := toDeBruijn (Term.app (Term.app churchAdd churchTwo) churchTwo)
+#eval prettyPrintDeBruijnWrapper exampleTerm6  -- Should print: "λ. λ. 3 2 (1 0)"
+#eval prettyPrintDeBruijnWrapper (normalizeDeBruijn exampleTerm6)  -- Should print: "λ. λ. 1 (1 (1 (1 0)))"
+
+-- Complex nested application: ((λx. λy. x y) (λz. z)) w => w
+def exampleTerm7 := toDeBruijn (Term.app (Term.app (Term.lam "x" (Term.lam "y" (Term.app (Term.var "x") (Term.var "y")))) (Term.lam "z" (Term.var "z"))) (Term.var "w"))
+#eval prettyPrintDeBruijnWrapper exampleTerm7  -- Should print: "(λ. λ. 1 0) λ. 0 1"
+#eval prettyPrintDeBruijnWrapper (normalizeDeBruijn exampleTerm7)  -- Should print: "0"
+
+-- Nested Lambda: λx. λy. λz. x (y z)
+def exampleTerm8 := toDeBruijn (Term.lam "x" (Term.lam "y" (Term.lam "z" (Term.app (Term.var "x") (Term.app (Term.var "y") (Term.var "z"))))))
+#eval prettyPrintDeBruijnWrapper exampleTerm8  -- Should print: "λ. λ. λ. 2 (1 0)"
+#eval prettyPrintDeBruijnWrapper (normalizeDeBruijn exampleTerm8)  -- Should print the same since it's already normal
+
+-- Self-application (does not normalize): (λx. x x) (λx. x x)
+def exampleTerm9 := toDeBruijn (Term.app (Term.lam "x" (Term.app (Term.var "x") (Term.var "x"))) (Term.lam "x" (Term.app (Term.var "x") (Term.var "x"))))
+#eval prettyPrintDeBruijnWrapper exampleTerm9  -- Should print: "(λ. 0 0) λ. 0 0"
+#eval prettyPrintDeBruijnWrapper (normalizeDeBruijn exampleTerm9)  -- May cause infinite loop, Lean will handle the stack limit or recursion depth

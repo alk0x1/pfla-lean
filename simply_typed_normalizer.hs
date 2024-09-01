@@ -1,5 +1,3 @@
-import Debug.Trace (trace)
-
 newtype Name = Name String
   deriving (Show, Eq)
 
@@ -40,6 +38,11 @@ lookupVar (Env ((y,v): env')) x
 extend :: Env val -> Name -> val -> Env val
 extend (Env env) x v = Env ((x, v): env)
 
+
+instance Functor Env where
+  fmap :: (a -> b) -> Env a -> Env b
+  fmap f (Env xs) =
+    Env (map (\(x, v) -> (x, f v)) xs)
 
 -- inference
 synth :: Context -> Expr -> Either Message Ty
@@ -94,38 +97,153 @@ check ctx other t =
        then Right ()
        else failure ("Expected " ++ show t ++ " but got " ++ show t')
 
-addDefs::Context->[(Name, Expr)] -> Either Message Context
-addDefs ctx [] = Right ctx
-addDefs ctx ((x,e) : defs) =
- do t <- synth ctx e
-    addDefs (extend ctx x t) defs
+addDefs::Defs->[(Name, Expr)] -> Either Message Defs
+addDefs defs [] = 
+  Right defs
+addDefs defs ((x,e) : more) =
+  do norm <- normWithDefs defs e
+     addDefs (extend defs x norm) more
+definedNames::Defs -> [Name]
+definedNames (Env defs) = map fst defs
 
 -- Type check both a partial and full application of addition.
-test :: Either Message (Ty, Ty)
-test = do
-  ctx <- addDefs initCtx
-    [ (Name "two",
-        Ann (Add1 (Add1 Zero)) TNat),
-      (Name "three",
-        Ann (Add1 (Add1 (Add1 Zero))) TNat),
-      (Name "+",
-        Ann (Lambda (Name "n")
-             (Lambda (Name "k")
-               (Rec TNat (Var (Name "n"))
-                (Var (Name "k"))
-                (Lambda (Name "pred")
-                  (Lambda (Name "almostSum")
-                    (Add1 (Var (Name "almostSum"))))))))
-        (TArr TNat (TArr TNat TNat)))
-    ]
+normWithTestDefs :: Expr -> Either Message Expr
+normWithTestDefs e = do
+    defs <- addDefs noDefs
+        [ (Name "two",
+            Ann (Add1 (Add1 Zero)) TNat)
+        , (Name "three",
+            Ann (Add1 (Add1 (Add1 Zero))) TNat)
+        , (Name "+",
+            Ann (Lambda (Name "n")
+                      (Lambda (Name "k")
+                          (Rec TNat (Var (Name "n"))
+                                    (Var (Name "k"))
+                                    (Lambda (Name "pred")
+                                        (Lambda (Name "almostSum")
+                                            (Add1 (Var (Name "almostSum"))))))))
+                (TArr TNat (TArr TNat TNat)))
+        ]
+    norm <- normWithDefs defs e
+    Right (readBackNormal (definedNames defs) norm)
 
-  let expr1 = App (Var (Name "+")) (Var (Name "three"))
-  let expr2 = App (App (Var (Name "+")) (Var (Name "three"))) (Var (Name "two"))
+test1, test2, test3 :: Either Message Expr
+test1 = normWithTestDefs (Var (Name "+"))
+test2 = normWithTestDefs (App (Var (Name "+")) (Var (Name "three")))
+test3 = normWithTestDefs (App (App (Var (Name "+")) (Var (Name "three"))) (Var (Name "two")))
 
-  trace ("Evaluating expression: " ++ show expr1) $ return ()
-  t1 <- synth ctx expr1
 
-  trace ("Evaluating expression: " ++ show expr2) $ return ()
-  t2 <- synth ctx expr2
+nextName :: Name -> Name
+nextName (Name x) = Name (x ++ "'")
 
-  Right (t1, t2)
+freshen :: [Name] -> Name -> Name
+freshen used x
+  | x `elem` used = freshen used (nextName x)
+  | otherwise = x
+
+data Neutral
+  = NVar Name
+  | NApp Neutral Value
+  | NRec Ty Neutral Normal Normal
+  deriving (Show)
+
+data Value
+ = VZero
+ | VAdd1 Value
+ | VClosure (Env Value) Name Expr
+ | VNeutral Ty Neutral
+ deriving (Show)
+
+data Normal
+ = Normal  { normalType :: Ty,
+   normalValue :: Value}
+ deriving (Show)
+
+
+doApply :: Value -> Value -> Value
+doApply (VClosure env x body) arg =
+ eval (extend env x arg) body
+doApply (VNeutral (TArr t1 t2) neu) arg =
+  VNeutral t2 (NApp neu arg)
+
+
+doRec :: Ty -> Value -> Value -> Value -> Value
+doRec t VZero base step = base
+doRec t (VAdd1 n) base step =
+ doApply (doApply step n)
+  (doRec t n base step)
+doRec t (VNeutral TNat neu) base step =
+ VNeutral t
+  (NRec t neu
+   (Normal t base)
+   (Normal (TArr TNat (TArr t t)) step))
+
+
+eval :: Env Value -> Expr -> Value
+eval env (Var x) =
+ case lookupVar env x of
+ Left msg ->
+  error ("Internal error: " ++ show msg)
+ Right v -> v
+eval env (Lambda x body) =
+ VClosure env x body
+eval env (App rator rand) =
+  doApply (eval env rator) (eval env rand)
+eval env Zero = VZero
+eval env (Add1 n) = VAdd1 (eval env n)
+eval env (Rec t tgt base step) =
+ doRec t (eval env tgt) (eval env base) (eval env step)
+eval env (Ann e t) = eval env e
+
+readBackNormal :: [Name] -> Normal -> Expr
+readBackNormal used (Normal t v) = readBack used t v
+
+readBack::[Name] -> Ty -> Value -> Expr
+readBack used TNat VZero =
+  Zero
+readBack used TNat (VAdd1 pred) =
+  Add1 (readBack used TNat pred)
+readBack used (TArr t1 t2) fun =
+  let x = freshen used (argName fun)
+      xVal = VNeutral t1 (NVar x)
+  in Lambda x
+  (readBack used t2
+    (doApply fun xVal))
+  where
+    argName (VClosure _ x _ ) = x
+    argName _ = Name "x"
+readBack used t1 (VNeutral t2 neu) =
+  if t1 == t2
+then readBackNeutral used neu
+else error "Internal error: mismatched types at readBackNeutral"
+
+readBackNeutral :: [Name] -> Neutral -> Expr
+readBackNeutral used (NVar x) = Var x
+readBackNeutral used (NApp rator arg) =
+  let argNormal = Normal (inferType arg) arg  -- Wrap the arg in a Normal with its type
+  in App (readBackNeutral used rator) (readBackNormal used argNormal)
+readBackNeutral used (NRec t neu base step) =
+  Rec t (readBackNeutral used neu)
+  (readBackNormal used base)
+  (readBackNormal used step)
+
+inferType :: Value -> Ty
+inferType VZero = TNat
+inferType (VAdd1 _) = TNat
+inferType (VClosure {}) = error "Cannot infer type of a closure"
+inferType (VNeutral ty _) = ty
+
+type Defs = Env Normal
+noDefs :: Defs
+noDefs = initEnv
+defsToContext :: Defs -> Context
+defsToContext = fmap normalType
+defsToEnv :: Defs -> Env Value
+defsToEnv = fmap normalValue
+
+normWithDefs :: Defs -> Expr -> Either Message Normal
+normWithDefs defs e =
+  do t <- synth (defsToContext defs) e
+     let v = eval (defsToEnv defs) e
+     Right (Normal t v)
+
